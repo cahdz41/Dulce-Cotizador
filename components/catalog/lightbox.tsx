@@ -53,11 +53,19 @@ export default function Lightbox({ product: p, onClose, onAdd }: Props) {
 
         {/* Image */}
         <div style={{
-          background: "linear-gradient(135deg, #E8EEF3 0%, #C8D6E0 100%)",
+          background: p.imagen ? "white" : "linear-gradient(135deg, #E8EEF3 0%, #C8D6E0 100%)",
           display: "flex", alignItems: "center", justifyContent: "center",
           padding: 32, minHeight: 480,
         }}>
-          <GlassRender categoria={p.categoria} descripcion={p.descripcion} size="lg" />
+          {p.imagen ? (
+            <img
+              src={p.imagen}
+              alt={p.descripcion}
+              style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+            />
+          ) : (
+            <GlassRender categoria={p.categoria} descripcion={p.descripcion} size="lg" />
+          )}
         </div>
 
         {/* Info */}
