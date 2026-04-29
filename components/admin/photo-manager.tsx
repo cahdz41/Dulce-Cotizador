@@ -38,7 +38,7 @@ export default function PhotoManager({ products: initialProducts }: Props) {
     try {
       await supabase.from('products').delete().neq('id', '00000000-0000-0000-0000-000000000000')
       await supabase.from('products').insert(CATALOG_DATA)
-      const { data } = await supabase.from('products').select('*').order('categoria')
+      const { data } = await supabase.from('products').select('*').order('grupo')
       if (data && data.length > 0) {
         setProducts(data as Producto[])
         setSelected(null)
@@ -53,7 +53,8 @@ export default function PhotoManager({ products: initialProducts }: Props) {
     return (
       p.descripcion.toLowerCase().includes(q) ||
       p.codigo.toLowerCase().includes(q) ||
-      p.categoria.toLowerCase().includes(q)
+      p.grupo.toLowerCase().includes(q) ||
+      p.subclasificacion.toLowerCase().includes(q)
     )
   })
 
@@ -223,7 +224,7 @@ export default function PhotoManager({ products: initialProducts }: Props) {
                           {p.descripcion}
                         </p>
                         <p style={{ fontSize: 11, color: 'var(--ink-mute)', margin: 0 }}>
-                          {p.codigo} · {p.categoria}
+                          {p.codigo} · {p.grupo}
                         </p>
                       </div>
                     </div>
@@ -255,7 +256,7 @@ export default function PhotoManager({ products: initialProducts }: Props) {
                   {selected.descripcion}
                 </p>
                 <p style={{ fontSize: 11, color: 'var(--ink-mute)', margin: '2px 0 0' }}>
-                  {selected.codigo} · {selected.categoria}
+                  {selected.codigo} · {selected.grupo}
                 </p>
               </div>
 

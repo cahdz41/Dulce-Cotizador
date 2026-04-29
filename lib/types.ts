@@ -1,12 +1,11 @@
 export type Producto = {
   id?: string;
   codigo: string;
-  categoria: string;
   descripcion: string;
-  dimensiones: string;
-  precio: number;
+  grupo: string;
+  subclasificacion: string;
+  color: string;
   stock: number;
-  unidad: "hoja" | "pieza";
   imagen?: string;
 };
 
@@ -29,7 +28,6 @@ export type Cotizacion = {
   estado: "pendiente" | "atendida";
   datos: DatosCliente;
   cart: CartItem[];
-  total: number;
 };
 
 export type Empresa = {

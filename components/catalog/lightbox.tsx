@@ -3,17 +3,20 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { Producto } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils";
 import GlassRender from "@/components/glass-render";
 
 type Props = {
-  product: Producto;
+  variants: Producto[];
   onClose: () => void;
   onAdd: (p: Producto, qty: number) => void;
 };
 
-export default function Lightbox({ product: p, onClose, onAdd }: Props) {
+export default function Lightbox({ variants, onClose, onAdd }: Props) {
+  const [selectedIdx, setSelectedIdx] = useState(0);
   const [qty, setQty] = useState(1);
+
+  const p = variants[selectedIdx];
+  const hasMultiple = variants.length > 1;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -64,7 +67,7 @@ export default function Lightbox({ product: p, onClose, onAdd }: Props) {
               style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
             />
           ) : (
-            <GlassRender categoria={p.categoria} descripcion={p.descripcion} size="lg" />
+            <GlassRender categoria={p.grupo} descripcion={p.descripcion} size="lg" />
           )}
         </div>
 
@@ -75,25 +78,55 @@ export default function Lightbox({ product: p, onClose, onAdd }: Props) {
             {p.descripcion}
           </h2>
           <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-            {p.categoria}
+            {p.grupo}
           </span>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px 24px", margin: "24px 0" }}>
-            <InfoField label="Dimensiones" value={<span style={{ fontFamily: "monospace" }}>{p.dimensiones}</span>} />
-            <InfoField label="Unidad" value={p.unidad} />
+            <InfoField label="Sub clasificación" value={p.subclasificacion || "—"} />
+            <InfoField label="Color / Acabado" value={p.color} />
             <InfoField
               label="Stock disponible"
               value={
                 <span style={{ color: p.stock <= 5 ? "var(--warning)" : "var(--success)", fontWeight: 600 }}>
-                  {p.stock <= 5 ? `Quedan ${p.stock}` : p.stock} {p.unidad}{p.stock !== 1 ? "s" : ""}
+                  {p.stock <= 5 ? `Quedan ${p.stock}` : p.stock} unidades
                 </span>
               }
             />
-            <InfoField
-              label="Precio estimado"
-              value={<span style={{ fontSize: 22, fontWeight: 700, color: "var(--primary)" }}>{formatCurrency(p.precio)}</span>}
-            />
+            <InfoField label="Unidad" value="pieza" />
           </div>
+
+          {/* Selector de acabados */}
+          {hasMultiple && (
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 11, color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+                Selecciona acabado / color
+              </label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {variants.map((v, idx) => (
+                  <button
+                    key={v.codigo}
+                    onClick={() => { setSelectedIdx(idx); setQty(1); }}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      border: `2px solid ${idx === selectedIdx ? "var(--primary)" : "var(--border)"}`,
+                      background: idx === selectedIdx ? "var(--primary-light)" : "white",
+                      color: idx === selectedIdx ? "var(--primary)" : "var(--ink)",
+                      transition: "all 0.15s",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {v.color}
+                    <span style={{ display: "block", fontSize: 10, fontWeight: 500, color: "var(--ink-mute)", marginTop: 2 }}>
+                      {v.codigo}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ marginTop: "auto", display: "flex", gap: 10, alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", height: 38 }}>

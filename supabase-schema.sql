@@ -1,101 +1,98 @@
 -- Ejecuta este SQL en el SQL Editor de Supabase
 
 -- Tabla de productos/catálogo
-create table if not exists products (
-  id uuid default gen_random_uuid() primary key,
-  codigo text not null unique,
-  categoria text not null,
-  descripcion text not null,
-  dimensiones text not null,
-  precio numeric(10,2) not null,
-  stock integer not null default 0,
-  unidad text not null default 'pieza',
-  imagen text,
-  created_at timestamptz default now()
+CREATE TABLE IF NOT EXISTS products (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  codigo TEXT NOT NULL UNIQUE,
+  descripcion TEXT NOT NULL,
+  grupo TEXT NOT NULL,
+  subclasificacion TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL DEFAULT '',
+  stock INTEGER NOT NULL DEFAULT 0,
+  imagen TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Tabla de cotizaciones
-create table if not exists quotes (
-  id uuid default gen_random_uuid() primary key,
-  folio text not null unique,
-  fecha timestamptz not null default now(),
-  estado text not null default 'pendiente',
-  datos jsonb not null,
-  total numeric(10,2) not null,
-  created_at timestamptz default now()
+CREATE TABLE IF NOT EXISTS quotes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  folio TEXT NOT NULL UNIQUE,
+  fecha TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  estado TEXT NOT NULL DEFAULT 'pendiente',
+  datos JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Tabla de items de cotización
-create table if not exists quote_items (
-  id uuid default gen_random_uuid() primary key,
-  quote_id uuid references quotes(id) on delete cascade,
-  codigo text not null,
-  categoria text not null,
-  descripcion text not null,
-  dimensiones text not null,
-  precio numeric(10,2) not null,
-  cantidad integer not null,
-  subtotal numeric(10,2) generated always as (precio * cantidad) stored
+CREATE TABLE IF NOT EXISTS quote_items (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  quote_id UUID REFERENCES quotes(id) ON DELETE CASCADE,
+  codigo TEXT NOT NULL,
+  descripcion TEXT NOT NULL,
+  grupo TEXT NOT NULL,
+  subclasificacion TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL DEFAULT '',
+  cantidad INTEGER NOT NULL
 );
 
 -- Tabla de configuración de empresa (una sola fila)
-create table if not exists company_settings (
-  id uuid default gen_random_uuid() primary key,
-  nombre text not null,
-  giro text,
-  direccion text,
-  telefono text,
-  whatsapp text,
-  logo text,
-  updated_at timestamptz default now()
+CREATE TABLE IF NOT EXISTS company_settings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  giro TEXT,
+  direccion TEXT,
+  telefono TEXT,
+  whatsapp TEXT,
+  logo TEXT,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Políticas RLS (Row Level Security)
-alter table products enable row level security;
-alter table quotes enable row level security;
-alter table quote_items enable row level security;
-alter table company_settings enable row level security;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quotes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quote_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE company_settings ENABLE ROW LEVEL SECURITY;
 
 -- Lectura pública del catálogo
-create policy "products_public_read" on products
-  for select using (true);
+CREATE POLICY "products_public_read" ON products
+  FOR SELECT USING (TRUE);
 
 -- Inserción pública de cotizaciones (los clientes crean cotizaciones)
-create policy "quotes_public_insert" on quotes
-  for insert with check (true);
+CREATE POLICY "quotes_public_insert" ON quotes
+  FOR INSERT WITH CHECK (TRUE);
 
-create policy "quotes_public_read" on quotes
-  for select using (true);
+CREATE POLICY "quotes_public_read" ON quotes
+  FOR SELECT USING (TRUE);
 
-create policy "quote_items_public_insert" on quote_items
-  for insert with check (true);
+CREATE POLICY "quote_items_public_insert" ON quote_items
+  FOR INSERT WITH CHECK (TRUE);
 
-create policy "quote_items_public_read" on quote_items
-  for select using (true);
+CREATE POLICY "quote_items_public_read" ON quote_items
+  FOR SELECT USING (TRUE);
 
 -- Actualizaciones (admin)
-create policy "quotes_public_update" on quotes
-  for update using (true);
+CREATE POLICY "quotes_public_update" ON quotes
+  FOR UPDATE USING (TRUE);
 
-create policy "quotes_public_delete" on quotes
-  for delete using (true);
+CREATE POLICY "quotes_public_delete" ON quotes
+  FOR DELETE USING (TRUE);
 
 -- Catálogo (admin puede modificar)
-create policy "products_public_insert" on products
-  for insert with check (true);
+CREATE POLICY "products_public_insert" ON products
+  FOR INSERT WITH CHECK (TRUE);
 
-create policy "products_public_update" on products
-  for update using (true);
+CREATE POLICY "products_public_update" ON products
+  FOR UPDATE USING (TRUE);
 
-create policy "products_public_delete" on products
-  for delete using (true);
+CREATE POLICY "products_public_delete" ON products
+  FOR DELETE USING (TRUE);
 
 -- Empresa (lectura pública, escritura pública para MVP)
-create policy "company_public_read" on company_settings
-  for select using (true);
+CREATE POLICY "company_public_read" ON company_settings
+  FOR SELECT USING (TRUE);
 
-create policy "company_public_insert" on company_settings
-  for insert with check (true);
+CREATE POLICY "company_public_insert" ON company_settings
+  FOR INSERT WITH CHECK (TRUE);
 
-create policy "company_public_update" on company_settings
-  for update using (true);
+CREATE POLICY "company_public_update" ON company_settings
+  FOR UPDATE USING (TRUE);

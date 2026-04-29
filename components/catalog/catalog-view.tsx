@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef } from "react";
 import { Search, X, LayoutGrid, List, ShoppingCart, ZoomIn } from "lucide-react";
 import { Producto } from "@/lib/types";
-import { fuzzyScore, formatCurrency } from "@/lib/utils";
+import { fuzzyScore } from "@/lib/utils";
 import { useCart } from "@/lib/cart-context";
 import GlassRender from "@/components/glass-render";
 import CartDrawer from "./cart-drawer";
@@ -17,55 +17,84 @@ type Props = {
 
 export default function CatalogView({ products, onCheckout }: Props) {
   const [query, setQuery] = useState("");
-  const [activeCat, setActiveCat] = useState("Todos");
+  const [activeGrupo, setActiveGrupo] = useState("Todos");
+  const [activeSub, setActiveSub] = useState("Todos");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [lightboxProduct, setLightboxProduct] = useState<Producto | null>(null);
+  const [lightboxVariants, setLightboxVariants] = useState<Producto[] | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
-  const { items, total, count, add } = useCart();
+  const { items, count, add } = useCart();
 
   const visibleProducts = products.filter((p) => p.stock > 0);
 
-  const categories = useMemo(() => {
-    const counts: Record<string, number> = {};
+  // Agrupar por descripción para mostrar un producto por descripción única
+  const productGroups = useMemo(() => {
+    const groups: Record<string, Producto[]> = {};
     visibleProducts.forEach((p) => {
-      counts[p.categoria] = (counts[p.categoria] || 0) + 1;
+      if (!groups[p.descripcion]) groups[p.descripcion] = [];
+      groups[p.descripcion].push(p);
     });
-    return Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0]));
+    return groups;
   }, [visibleProducts]);
 
+  // Lista de productos "representantes" (uno por descripción)
+  const representatives = useMemo(() => {
+    return Object.values(productGroups).map((variants) => {
+      // Preferir el que tenga imagen, o el primero
+      return variants.find((v) => v.imagen) || variants[0];
+    });
+  }, [productGroups]);
+
+  // Extraer filtros únicos
+  const grupos = useMemo(() => {
+    const set = new Set(representatives.map((p) => p.grupo));
+    return Array.from(set).sort();
+  }, [representatives]);
+
+  const subs = useMemo(() => {
+    const set = new Set(representatives.map((p) => p.subclasificacion).filter(Boolean));
+    return Array.from(set).sort();
+  }, [representatives]);
+
+  // Filtrado
   const filtered = useMemo(() => {
-    let list = visibleProducts;
-    if (activeCat !== "Todos") list = list.filter((p) => p.categoria === activeCat);
+    let list = representatives;
+    if (activeGrupo !== "Todos") list = list.filter((p) => p.grupo === activeGrupo);
+    if (activeSub !== "Todos") list = list.filter((p) => p.subclasificacion === activeSub);
     if (!query.trim()) return list;
     return list
       .map((p) => ({ p, score: fuzzyScore(query, p) }))
       .filter((x) => x.score > 10)
       .sort((a, b) => b.score - a.score)
       .map((x) => x.p);
-  }, [visibleProducts, activeCat, query]);
+  }, [representatives, activeGrupo, activeSub, query]);
 
   const suggestions = useMemo(() => {
     if (!query.trim() || query.length < 2) return [];
-    return visibleProducts
+    return representatives
       .map((p) => ({ p, score: fuzzyScore(query, p) }))
       .filter((x) => x.score > 10)
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)
       .map((x) => x.p);
-  }, [query, visibleProducts]);
+  }, [query, representatives]);
 
   function handleAddToCart(product: Producto, cantidad: number) {
     add(product, cantidad);
     toast.success(`${product.descripcion} agregado al carrito`);
   }
 
-  const groupedByCategory = useMemo(() => {
+  function handleZoom(product: Producto) {
+    const variants = productGroups[product.descripcion] || [product];
+    setLightboxVariants(variants);
+  }
+
+  const groupedByGrupo = useMemo(() => {
     const groups: Record<string, Producto[]> = {};
     filtered.forEach((p) => {
-      if (!groups[p.categoria]) groups[p.categoria] = [];
-      groups[p.categoria].push(p);
+      if (!groups[p.grupo]) groups[p.grupo] = [];
+      groups[p.grupo].push(p);
     });
     return groups;
   }, [filtered]);
@@ -102,7 +131,7 @@ export default function CatalogView({ products, onCheckout }: Props) {
                 onChange={(e) => { setQuery(e.target.value); setShowSuggestions(true); }}
                 onFocus={() => setShowSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                placeholder="Buscar por código, tipo, dimensiones..."
+                placeholder="Buscar por código, descripción, grupo..."
                 style={{
                   flex: 1, border: "none", outline: "none", background: "transparent",
                   padding: "0 12px", fontSize: 15, color: "var(--ink)",
@@ -134,7 +163,7 @@ export default function CatalogView({ products, onCheckout }: Props) {
                     className="suggestion-item"
                   >
                     <Search size={12} color="var(--ink-soft)" />
-                    <span><strong>{p.descripcion}</strong> — {p.categoria}</span>
+                    <span><strong>{p.descripcion}</strong> — {p.grupo}</span>
                     <span style={{ marginLeft: "auto", fontFamily: "monospace", fontSize: 11, color: "var(--ink-soft)" }}>
                       {p.codigo}
                     </span>
@@ -145,20 +174,32 @@ export default function CatalogView({ products, onCheckout }: Props) {
           </div>
         </div>
 
-        {/* Category bar */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 16, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <CatPill
-              label="Todos"
-              count={visibleProducts.length}
-              active={activeCat === "Todos"}
-              onClick={() => setActiveCat("Todos")}
-            />
-            {categories.map(([cat, cnt]) => (
-              <CatPill key={cat} label={cat} count={cnt} active={activeCat === cat} onClick={() => setActiveCat(cat)} />
-            ))}
+        {/* Filters */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 16, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 280 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <CatPill
+                label="Todos"
+                count={representatives.length}
+                active={activeGrupo === "Todos"}
+                onClick={() => setActiveGrupo("Todos")}
+              />
+              {grupos.map((g) => (
+                <CatPill key={g} label={g} count={representatives.filter((p) => p.grupo === g).length} active={activeGrupo === g} onClick={() => setActiveGrupo(g)} />
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <FilterPill
+                label="Todas las subclasificaciones"
+                active={activeSub === "Todos"}
+                onClick={() => setActiveSub("Todos")}
+              />
+              {subs.map((s) => (
+                <FilterPill key={s} label={s} active={activeSub === s} onClick={() => setActiveSub(s)} />
+              ))}
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 0, background: "white", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+          <div style={{ display: "flex", gap: 0, background: "white", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden", flexShrink: 0 }}>
             <ViewBtn active={viewMode === "grid"} onClick={() => setViewMode("grid")} icon={<LayoutGrid size={15} />} label="Mosaico" />
             <ViewBtn active={viewMode === "list"} onClick={() => setViewMode("list")} icon={<List size={15} />} label="Lista" />
           </div>
@@ -174,7 +215,7 @@ export default function CatalogView({ products, onCheckout }: Props) {
 
         {/* Products */}
         {filtered.length === 0 ? (
-          <EmptyState onClear={() => { setQuery(""); setActiveCat("Todos"); }} />
+          <EmptyState onClear={() => { setQuery(""); setActiveGrupo("Todos"); setActiveSub("Todos"); }} />
         ) : viewMode === "grid" ? (
           <div style={{
             display: "grid",
@@ -183,15 +224,16 @@ export default function CatalogView({ products, onCheckout }: Props) {
           }}>
             {filtered.map((p) => (
               <ProductCard
-                key={p.codigo}
+                key={p.descripcion}
                 product={p}
+                variants={productGroups[p.descripcion] || [p]}
                 onAdd={handleAddToCart}
-                onZoom={() => setLightboxProduct(p)}
+                onZoom={() => handleZoom(p)}
               />
             ))}
           </div>
         ) : (
-          <ListView groups={groupedByCategory} onAdd={handleAddToCart} onZoom={(p) => setLightboxProduct(p)} />
+          <ListView groups={groupedByGrupo} onAdd={handleAddToCart} onZoom={handleZoom} />
         )}
       </div>
 
@@ -211,7 +253,6 @@ export default function CatalogView({ products, onCheckout }: Props) {
           <span style={{ background: "var(--accent)", padding: "2px 9px", borderRadius: 100, fontSize: 12, fontWeight: 700 }}>
             {count}
           </span>
-          <span style={{ fontFamily: "monospace", fontSize: 14 }}>{formatCurrency(total)}</span>
           <span style={{ fontWeight: 600, paddingLeft: 10, borderLeft: "1px solid rgba(255,255,255,0.25)" }}>
             Ver pre-cotización →
           </span>
@@ -227,10 +268,10 @@ export default function CatalogView({ products, onCheckout }: Props) {
       )}
 
       {/* Lightbox */}
-      {lightboxProduct && (
+      {lightboxVariants && (
         <Lightbox
-          product={lightboxProduct}
-          onClose={() => setLightboxProduct(null)}
+          variants={lightboxVariants}
+          onClose={() => setLightboxVariants(null)}
           onAdd={(p, qty) => handleAddToCart(p, qty)}
         />
       )}
@@ -270,6 +311,24 @@ function CatPill({ label, count, active, onClick }: { label: string; count: numb
   );
 }
 
+function FilterPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 6,
+        padding: "6px 12px",
+        background: active ? "var(--primary-light)" : "white",
+        border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+        borderRadius: 100, fontSize: 12, color: active ? "var(--primary)" : "var(--ink-mute)", fontWeight: 500,
+        transition: "all 0.15s",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 function ViewBtn({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
   return (
     <button
@@ -285,8 +344,10 @@ function ViewBtn({ active, onClick, icon, label }: { active: boolean; onClick: (
   );
 }
 
-function ProductCard({ product: p, onAdd, onZoom }: { product: Producto; onAdd: (p: Producto, qty: number) => void; onZoom: () => void }) {
+function ProductCard({ product: p, variants, onAdd, onZoom }: { product: Producto; variants: Producto[]; onAdd: (p: Producto, qty: number) => void; onZoom: () => void }) {
   const [qty, setQty] = useState(1);
+  const hasMultipleColors = variants.length > 1;
+  const colorLabel = hasMultipleColors ? `${variants.length} acabados` : p.color;
 
   return (
     <div style={{
@@ -312,7 +373,7 @@ function ProductCard({ product: p, onAdd, onZoom }: { product: Producto; onAdd: 
           />
         ) : (
           <div style={{ width: "80%", height: "80%" }}>
-            <GlassRender categoria={p.categoria} descripcion={p.descripcion} size="md" />
+            <GlassRender categoria={p.grupo} descripcion={p.descripcion} size="md" />
           </div>
         )}
         <div className="zoom-hint" style={{
@@ -335,26 +396,24 @@ function ProductCard({ product: p, onAdd, onZoom }: { product: Producto; onAdd: 
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 11, color: "var(--ink-mute)", flexWrap: "wrap" }}>
           <span style={{ background: "var(--primary-light)", color: "var(--primary)", padding: "2px 8px", borderRadius: 100, fontWeight: 600, fontSize: 10, letterSpacing: "0.02em", textTransform: "uppercase" }}>
-            {p.categoria}
+            {p.grupo}
           </span>
-          <span style={{ color: "var(--ink-mute)", fontFamily: "monospace" }}>{p.dimensiones}</span>
+          {p.subclasificacion && (
+            <span style={{ color: "var(--ink-mute)", fontSize: 10 }}>{p.subclasificacion}</span>
+          )}
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: "auto", paddingTop: 12, gap: 10 }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--primary)", letterSpacing: "-0.01em" }}>
-              {formatCurrency(p.precio)}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, marginTop: 3, fontWeight: 500, color: p.stock <= 5 ? "var(--warning)" : "var(--success)" }}>
-              <span style={{
-                width: 7, height: 7, borderRadius: "50%", background: "currentColor",
-                boxShadow: "0 0 0 3px color-mix(in srgb, currentColor 20%, transparent)",
-                ...(p.stock <= 5 ? { animation: "pulse-dot 1.5s ease-in-out infinite" } : {}),
-              }} />
-              {p.stock <= 5 ? `Quedan ${p.stock}` : `En stock`} · {p.unidad}
-            </div>
+        <div style={{ marginTop: "auto", paddingTop: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, marginBottom: 8 }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: "50%", background: "var(--success)",
+              boxShadow: "0 0 0 3px color-mix(in srgb, var(--success) 20%, transparent)",
+            }} />
+            <span style={{ color: "var(--ink-mute)", fontWeight: 500 }}>
+              {colorLabel} · En stock
+            </span>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", height: 30 }}>
               <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 26, height: 28, background: "var(--bg)", color: "var(--ink)", fontSize: 14, fontWeight: 600 }}>−</button>
               <input
@@ -392,20 +451,20 @@ function ListView({ groups, onAdd, onZoom }: {
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {Object.entries(groups).map(([cat, products]) => (
-        <div key={cat} style={{ background: "white", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden" }}>
+      {Object.entries(groups).map(([grupo, products]) => (
+        <div key={grupo} style={{ background: "white", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden" }}>
           <div style={{
             padding: "14px 20px",
             background: "linear-gradient(135deg, var(--primary-light) 0%, white 100%)",
             borderBottom: "1px solid var(--border)",
             display: "flex", justifyContent: "space-between", alignItems: "center",
           }}>
-            <h3 style={{ margin: 0, fontSize: 15, color: "var(--primary)", fontWeight: 700 }}>{cat}</h3>
+            <h3 style={{ margin: 0, fontSize: 15, color: "var(--primary)", fontWeight: 700 }}>{grupo}</h3>
             <span style={{ fontSize: 12, color: "var(--ink-mute)" }}>{products.length} productos</span>
           </div>
           <div>
             {products.map((p) => (
-              <ListRow key={p.codigo} product={p} onAdd={onAdd} onZoom={onZoom} />
+              <ListRow key={p.descripcion} product={p} onAdd={onAdd} onZoom={onZoom} />
             ))}
           </div>
         </div>
@@ -427,16 +486,13 @@ function ListRow({ product: p, onAdd, onZoom }: { product: Producto; onAdd: (p: 
       <div onClick={() => onZoom(p)} style={{ height: 48, cursor: "zoom-in", borderRadius: 4, overflow: "hidden", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
         {p.imagen
           ? <img src={p.imagen} alt={p.descripcion} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-          : <GlassRender categoria={p.categoria} descripcion={p.descripcion} size="sm" />
+          : <GlassRender categoria={p.grupo} descripcion={p.descripcion} size="sm" />
         }
       </div>
       <span style={{ fontFamily: "monospace", fontSize: 11, color: "var(--ink-mute)" }}>{p.codigo}</span>
       <span style={{ fontWeight: 500 }}>{p.descripcion}</span>
-      <span style={{ color: "var(--ink-mute)", fontFamily: "monospace", fontSize: 12 }}>{p.dimensiones}</span>
-      <span style={{ fontSize: 11, color: p.stock <= 5 ? "var(--warning)" : "var(--success)", fontWeight: 500 }}>
-        {p.stock <= 5 ? `Quedan ${p.stock}` : p.stock}
-      </span>
-      <span style={{ fontWeight: 700, color: "var(--primary)" }}>{formatCurrency(p.precio)}</span>
+      <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>{p.subclasificacion || "—"}</span>
+      <span style={{ fontSize: 11, color: "var(--success)", fontWeight: 500 }}>En stock</span>
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", height: 26 }}>
           <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 22, height: 24, background: "var(--bg)", color: "var(--ink)", fontSize: 12, fontWeight: 600 }}>−</button>

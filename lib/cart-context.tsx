@@ -46,7 +46,6 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 
 type CartContextType = {
   items: CartItem[];
-  total: number;
   count: number;
   add: (product: Producto, cantidad?: number) => void;
   remove: (codigo: string) => void;
@@ -59,14 +58,12 @@ const CartContext = createContext<CartContextType | null>(null);
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(cartReducer, { items: [] });
 
-  const total = state.items.reduce((sum, i) => sum + i.precio * i.cantidad, 0);
   const count = state.items.reduce((sum, i) => sum + i.cantidad, 0);
 
   return (
     <CartContext.Provider
       value={{
         items: state.items,
-        total,
         count,
         add: (product, cantidad = 1) => dispatch({ type: "ADD", product, cantidad }),
         remove: (codigo) => dispatch({ type: "REMOVE", codigo }),

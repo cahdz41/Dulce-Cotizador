@@ -2,7 +2,6 @@
 
 import { X } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
-import { formatCurrency } from "@/lib/utils";
 import GlassRender from "@/components/glass-render";
 
 type Props = {
@@ -11,7 +10,7 @@ type Props = {
 };
 
 export default function CartDrawer({ onClose, onCheckout }: Props) {
-  const { items, total, remove, updateQty } = useCart();
+  const { items, count, remove, updateQty } = useCart();
 
   return (
     <div
@@ -51,20 +50,22 @@ export default function CartDrawer({ onClose, onCheckout }: Props) {
                 gap: 14, padding: "14px 0", borderBottom: "1px solid var(--border)",
               }}>
                 <div style={{ height: 56, borderRadius: 6, overflow: "hidden", background: "var(--bg)" }}>
-                  <GlassRender categoria={item.categoria} descripcion={item.descripcion} size="sm" />
+                  <GlassRender categoria={item.grupo} descripcion={item.descripcion} size="sm" />
                 </div>
                 <div>
                   <div style={{ fontFamily: "monospace", fontSize: 10, color: "var(--ink-soft)" }}>{item.codigo}</div>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{item.descripcion}</div>
-                  <div style={{ fontSize: 11, color: "var(--ink-mute)", marginTop: 2 }}>{item.dimensiones}</div>
+                  <div style={{ fontSize: 11, color: "var(--ink-mute)", marginTop: 2 }}>
+                    {item.grupo} · {item.subclasificacion}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
+                    Color: <strong>{item.color}</strong>
+                  </div>
                   <div style={{ fontSize: 12, color: "var(--ink-mute)", marginTop: 4 }}>
-                    <span style={{ color: "var(--ink-soft)" }}>{formatCurrency(item.precio)}</span> × {item.cantidad}
+                    Cantidad: {item.cantidad}
                   </div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-                  <div style={{ fontWeight: 700, color: "var(--primary)", fontSize: 14 }}>
-                    {formatCurrency(item.precio * item.cantidad)}
-                  </div>
                   <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", height: 26 }}>
                     <button onClick={() => updateQty(item.codigo, item.cantidad - 1)} style={{ width: 22, height: 24, background: "var(--bg)", fontSize: 12, fontWeight: 600 }}>−</button>
                     <span style={{ display: "inline-block", minWidth: 22, textAlign: "center", fontSize: 12, fontWeight: 600 }}>{item.cantidad}</span>
@@ -82,16 +83,7 @@ export default function CartDrawer({ onClose, onCheckout }: Props) {
         {/* Footer */}
         {items.length > 0 && (
           <div style={{ padding: "20px 24px", borderTop: "1px solid var(--border)", background: "var(--bg)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-              <span style={{ fontSize: 14, color: "var(--ink-mute)" }}>Subtotal estimado</span>
-              <strong style={{ fontSize: 22, color: "var(--primary)", fontFamily: "monospace" }}>
-                {formatCurrency(total)}
-              </strong>
-            </div>
-            <div style={{
-              fontSize: 11, color: "var(--ink-mute)", padding: "10px 12px",
-              background: "#FFF8E1", borderLeft: "3px solid var(--warning)", borderRadius: 4, marginBottom: 12,
-            }}>
+            <div style={{ fontSize: 11, color: "var(--ink-mute)", padding: "10px 12px", background: "#FFF8E1", borderLeft: "3px solid var(--warning)", borderRadius: 4, marginBottom: 12 }}>
               <strong style={{ color: "#5C4310" }}>Pre-cotización:</strong> Los precios están sujetos a confirmación de stock y validación por el equipo de ventas.
             </div>
             <button

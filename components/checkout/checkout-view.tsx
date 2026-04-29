@@ -5,7 +5,7 @@ import { ArrowLeft, CheckCircle, Download, MessageCircle } from "lucide-react";
 import { DatosCliente, Cotizacion } from "@/lib/types";
 import { useCart } from "@/lib/cart-context";
 import { useEmpresa } from "@/lib/empresa-context";
-import { formatCurrency, formatDate, generateFolio } from "@/lib/utils";
+import { formatDate, generateFolio } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
@@ -19,14 +19,14 @@ export default function CheckoutView({ onBack }: Props) {
   const [datos, setDatos] = useState<DatosCliente>({ nombre: "", telefono: "", email: "", direccion: "", notas: "" });
   const [errors, setErrors] = useState<Partial<DatosCliente>>({});
   const [saving, setSaving] = useState(false);
-  const { items, total, clear } = useCart();
+  const { items, clear } = useCart();
   const { empresa } = useEmpresa();
 
   function validate(): boolean {
     const errs: Partial<DatosCliente> = {};
     if (!datos.nombre.trim()) errs.nombre = "Nombre requerido";
     if (!datos.telefono.trim()) errs.telefono = "Teléfono requerido";
-    else if (!/^[\d\s+()\-]{8,}$/.test(datos.telefono)) errs.telefono = "Formato inválido";
+    else if (!/[\d\s+()\-]{8,}$/.test(datos.telefono)) errs.telefono = "Formato inválido";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -43,7 +43,6 @@ export default function CheckoutView({ onBack }: Props) {
       estado: "pendiente",
       datos,
       cart: items,
-      total,
     };
 
     try {
@@ -52,7 +51,6 @@ export default function CheckoutView({ onBack }: Props) {
         fecha: cotizacion.fecha,
         estado: cotizacion.estado,
         datos: cotizacion.datos,
-        total: cotizacion.total,
       }).select().single();
 
       if (error) throw error;
@@ -61,17 +59,17 @@ export default function CheckoutView({ onBack }: Props) {
         items.map((item) => ({
           quote_id: q.id,
           codigo: item.codigo,
-          categoria: item.categoria,
           descripcion: item.descripcion,
-          dimensiones: item.dimensiones,
-          precio: item.precio,
+          grupo: item.grupo,
+          subclasificacion: item.subclasificacion,
+          color: item.color,
           cantidad: item.cantidad,
         }))
       );
 
       const phone = empresa.whatsapp.replace(/\D/g, "");
       const msg = encodeURIComponent(
-        `Hola ${empresa.nombre}, soy ${datos.nombre}. Te envío mi pre-cotización ${newFolio} por ${formatCurrency(total)} (${items.length} producto${items.length !== 1 ? "s" : ""}). Adjunto el PDF generado por su sistema. Gracias.`
+        `Hola ${empresa.nombre}, soy ${datos.nombre}. Te envío mi solicitud de cotización ${newFolio} (${items.length} producto${items.length !== 1 ? "s" : ""}). Adjunto el PDF generado por su sistema. Gracias.`
       );
       window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
 
@@ -91,11 +89,10 @@ export default function CheckoutView({ onBack }: Props) {
       <tr>
         <td class="mono" style="font-size:11px;color:#5A6878;">${item.codigo}</td>
         <td>${item.descripcion}</td>
-        <td>${item.categoria}</td>
-        <td class="mono">${item.dimensiones}</td>
+        <td>${item.grupo}</td>
+        <td>${item.subclasificacion}</td>
+        <td>${item.color}</td>
         <td style="text-align:center;">${item.cantidad}</td>
-        <td style="text-align:right;" class="mono">${formatCurrency(item.precio)}</td>
-        <td style="text-align:right;font-weight:600;" class="mono">${formatCurrency(item.precio * item.cantidad)}</td>
       </tr>`).join("");
 
     const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
@@ -105,10 +102,9 @@ export default function CheckoutView({ onBack }: Props) {
       .mono{font-family:'JetBrains Mono',monospace;}
       table{width:100%;border-collapse:collapse;}
       th{background:#0F3D6E;color:white;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;}
-      th.num,td.num{text-align:right;}
+      th.num,td.num{text-align:center;}
       td{padding:8px 10px;border-bottom:1px solid #E1E6EC;}
       tbody tr:nth-child(even){background:#F7F9FB;}
-      tfoot td{background:#E8F0F7;font-weight:700;color:#0F3D6E;padding:12px 10px;font-size:13px;border-top:2px solid #0F3D6E;}
       @media print{body{padding:0;}}
     </style></head><body>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #0F3D6E;margin-bottom:16px;">
@@ -137,14 +133,10 @@ export default function CheckoutView({ onBack }: Props) {
     </div>
     <table>
       <thead><tr>
-        <th>Código</th><th>Descripción</th><th>Categoría</th><th>Dimensiones</th>
-        <th class="num">Cant.</th><th class="num">P. Unit.</th><th class="num">Subtotal</th>
+        <th>Código</th><th>Descripción</th><th>Grupo</th><th>Sub clasificación</th><th>Color</th>
+        <th class="num">Cant.</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr>
-        <td colspan="6" style="text-align:right;font-size:13px;">TOTAL ESTIMADO</td>
-        <td class="num mono" style="font-size:16px;">${formatCurrency(total)}</td>
-      </tr></tfoot>
     </table>
     ${datos.notas ? `<div style="margin-top:16px;padding:12px 14px;background:#F7F9FB;border:1px solid #E1E6EC;border-radius:4px;">
       <h4 style="margin:0 0 6px;font-size:11px;color:#0F3D6E;text-transform:uppercase;">Notas del cliente</h4>
@@ -152,7 +144,7 @@ export default function CheckoutView({ onBack }: Props) {
     </div>` : ""}
     <div style="margin-top:24px;padding-top:12px;border-top:1px solid #E1E6EC;font-size:10px;color:#93A0AE;">
       <p style="margin:2px 0;">Este documento no tiene validez como factura o comprobante de pago.</p>
-      <p style="margin:2px 0;">Los precios incluyen IVA sujeto a confirmación. Vigencia: 7 días hábiles.</p>
+      <p style="margin:2px 0;">Los precios están sujetos a confirmación. Vigencia: 7 días hábiles.</p>
     </div>
     <script>window.onload=()=>{window.print();}</script>
     </body></html>`;
@@ -162,7 +154,7 @@ export default function CheckoutView({ onBack }: Props) {
   }
 
   if (step === "exito") {
-    return <SuccessView folio={folio} total={total} itemCount={items.length + (clear(), 0) || 0} onBack={onBack} />;
+    return <SuccessView folio={folio} itemCount={items.length + (clear(), 0) || 0} onBack={onBack} />;
   }
 
   return (
@@ -227,7 +219,7 @@ export default function CheckoutView({ onBack }: Props) {
               <p style={{ margin: "4px 0 0", color: "var(--ink-mute)", fontSize: 13 }}>Verifica los datos antes de enviar</p>
             </div>
 
-            <PDFPreview datos={datos} folio="PRE-PREVIEW" empresa={empresa} items={items} total={total} />
+            <PDFPreview datos={datos} folio="PRE-PREVIEW" empresa={empresa} items={items} />
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <button onClick={() => setStep("datos")} style={{
@@ -316,7 +308,7 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 function OrderSummary() {
-  const { items, total } = useCart();
+  const { items } = useCart();
   return (
     <div style={{
       background: "white", padding: 24, borderRadius: "var(--radius-lg)",
@@ -326,20 +318,11 @@ function OrderSummary() {
       <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 320, overflowY: "auto" }}>
         {items.map((item) => (
           <div key={item.codigo} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13, paddingBottom: 10, borderBottom: "1px dashed var(--border)" }}>
-            <span>{item.descripcion} × {item.cantidad}</span>
-            <span style={{ color: "var(--primary)", fontWeight: 600, fontFamily: "monospace" }}>
-              {formatCurrency(item.precio * item.cantidad)}
-            </span>
+            <span>{item.descripcion} <span style={{ color: "var(--ink-soft)" }}>({item.color})</span> × {item.cantidad}</span>
           </div>
         ))}
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingTop: 16, marginTop: 14, borderTop: "2px solid var(--primary)" }}>
-        <span style={{ fontSize: 13, color: "var(--ink-mute)" }}>Total estimado</span>
-        <strong style={{ fontSize: 22, color: "var(--primary)", fontFamily: "monospace" }}>
-          {formatCurrency(total)}
-        </strong>
-      </div>
-      <p style={{ fontSize: 10, color: "var(--ink-soft)", marginTop: 8 }}>
+      <p style={{ fontSize: 10, color: "var(--ink-soft)", marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
         Sujeto a confirmación de stock y precios
       </p>
     </div>
@@ -348,7 +331,7 @@ function OrderSummary() {
 
 import { Empresa, CartItem } from "@/lib/types";
 
-function PDFPreview({ datos, folio, empresa, items, total }: { datos: DatosCliente; folio: string; empresa: Empresa; items: CartItem[]; total: number }) {
+function PDFPreview({ datos, folio, empresa, items }: { datos: DatosCliente; folio: string; empresa: Empresa; items: CartItem[] }) {
   return (
     <div style={{
       background: "white", padding: "36px 40px", borderRadius: "var(--radius-lg)",
@@ -388,8 +371,8 @@ function PDFPreview({ datos, folio, empresa, items, total }: { datos: DatosClien
       <table style={{ width: "100%", borderCollapse: "collapse", margin: "16px 0" }}>
         <thead>
           <tr style={{ background: "var(--primary)", color: "white" }}>
-            {["Código", "Descripción", "Categoría", "Dim.", "Cant.", "P. Unit.", "Subtotal"].map((h, i) => (
-              <th key={h} style={{ textAlign: i >= 4 ? "right" : "left", padding: "8px 10px", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
+            {["Código", "Descripción", "Grupo", "Sub clasificación", "Color", "Cant."].map((h, i) => (
+              <th key={h} style={{ textAlign: i >= 5 ? "right" : "left", padding: "8px 10px", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -398,24 +381,13 @@ function PDFPreview({ datos, folio, empresa, items, total }: { datos: DatosClien
             <tr key={item.codigo} style={{ background: idx % 2 === 1 ? "var(--bg)" : "white" }}>
               <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 11, color: "var(--ink-mute)", borderBottom: "1px solid var(--border)" }}>{item.codigo}</td>
               <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>{item.descripcion}</td>
-              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>{item.categoria}</td>
-              <td style={{ padding: "8px 10px", fontFamily: "monospace", borderBottom: "1px solid var(--border)" }}>{item.dimensiones}</td>
+              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>{item.grupo}</td>
+              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>{item.subclasificacion}</td>
+              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>{item.color}</td>
               <td style={{ padding: "8px 10px", textAlign: "right", borderBottom: "1px solid var(--border)" }}>{item.cantidad}</td>
-              <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: "monospace", borderBottom: "1px solid var(--border)" }}>{formatCurrency(item.precio)}</td>
-              <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 600, fontFamily: "monospace", borderBottom: "1px solid var(--border)" }}>{formatCurrency(item.precio * item.cantidad)}</td>
             </tr>
           ))}
         </tbody>
-        <tfoot>
-          <tr style={{ background: "var(--primary-light)" }}>
-            <td colSpan={6} style={{ padding: "12px 10px", textAlign: "right", fontWeight: 700, color: "var(--primary)", fontSize: 13, borderTop: "2px solid var(--primary)" }}>
-              TOTAL ESTIMADO
-            </td>
-            <td style={{ padding: "12px 10px", textAlign: "right", fontWeight: 700, color: "var(--primary)", fontSize: 16, fontFamily: "monospace", borderTop: "2px solid var(--primary)" }}>
-              {formatCurrency(total)}
-            </td>
-          </tr>
-        </tfoot>
       </table>
 
       {datos.notas && (
@@ -428,7 +400,7 @@ function PDFPreview({ datos, folio, empresa, items, total }: { datos: DatosClien
   );
 }
 
-function SuccessView({ folio, total, itemCount, onBack }: { folio: string; total: number; itemCount: number; onBack: () => void }) {
+function SuccessView({ folio, itemCount, onBack }: { folio: string; itemCount: number; onBack: () => void }) {
   return (
     <main style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ maxWidth: 500, width: "100%", textAlign: "center", background: "white", borderRadius: "var(--radius-lg)", padding: "48px 32px", border: "1px solid var(--border)" }}>
@@ -438,10 +410,9 @@ function SuccessView({ folio, total, itemCount, onBack }: { folio: string; total
         <p style={{ color: "var(--ink-mute)", margin: "16px 0 24px" }}>
           El equipo de ventas revisará disponibilidad y precios y te contactará pronto.
         </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, background: "var(--bg)", padding: 16, borderRadius: "var(--radius)", marginBottom: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, background: "var(--bg)", padding: 16, borderRadius: "var(--radius)", marginBottom: 24 }}>
           <div><label style={{ display: "block", fontSize: 10, color: "var(--ink-soft)", textTransform: "uppercase" }}>Folio</label><span style={{ fontWeight: 600, fontSize: 13, fontFamily: "monospace" }}>{folio}</span></div>
           <div><label style={{ display: "block", fontSize: 10, color: "var(--ink-soft)", textTransform: "uppercase" }}>Productos</label><span style={{ fontWeight: 600, fontSize: 13 }}>{itemCount}</span></div>
-          <div><label style={{ display: "block", fontSize: 10, color: "var(--ink-soft)", textTransform: "uppercase" }}>Total est.</label><span style={{ fontWeight: 600, fontSize: 13, fontFamily: "monospace" }}>{formatCurrency(total)}</span></div>
         </div>
         <button onClick={onBack} style={{
           display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,

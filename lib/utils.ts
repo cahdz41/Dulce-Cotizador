@@ -43,10 +43,10 @@ export function lev(a: string, b: string): number {
   return dp[m][n];
 }
 
-export function fuzzyScore(query: string, product: { codigo: string; descripcion: string; categoria: string; dimensiones: string }): number {
+export function fuzzyScore(query: string, product: { codigo: string; descripcion: string; grupo: string; subclasificacion: string }): number {
   const q = query.toLowerCase().trim();
   if (!q) return 100;
-  const text = `${product.codigo} ${product.descripcion} ${product.categoria} ${product.dimensiones}`.toLowerCase();
+  const text = `${product.codigo} ${product.descripcion} ${product.grupo} ${product.subclasificacion}`.toLowerCase();
 
   if (text.includes(q)) {
     return 80 - text.indexOf(q);

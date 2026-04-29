@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { MessageCircle, Mail, Trash2, Check, RotateCcw, Upload, Save } from "lucide-react";
 import { Cotizacion, Empresa, Producto } from "@/lib/types";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useEmpresa } from "@/lib/empresa-context";
 import { CATALOG_DATA } from "@/lib/catalog-data";
@@ -38,11 +38,14 @@ export default function AdminView() {
         fecha: q.fecha,
         estado: q.estado,
         datos: q.datos,
-        total: q.total,
-        cart: q.quote_items.map((i: { codigo: string; categoria: string; descripcion: string; dimensiones: string; precio: number; cantidad: number; unidad?: string }) => ({
-          codigo: i.codigo, categoria: i.categoria, descripcion: i.descripcion,
-          dimensiones: i.dimensiones, precio: i.precio, cantidad: i.cantidad,
-          stock: 0, unidad: i.unidad || "pieza",
+        cart: q.quote_items.map((i: { codigo: string; descripcion: string; grupo: string; subclasificacion: string; color: string; cantidad: number }) => ({
+          codigo: i.codigo,
+          descripcion: i.descripcion,
+          grupo: i.grupo,
+          subclasificacion: i.subclasificacion,
+          color: i.color,
+          stock: 0,
+          cantidad: i.cantidad,
         })),
       })));
     }
@@ -50,7 +53,7 @@ export default function AdminView() {
   }
 
   async function loadProducts() {
-    const { data } = await supabase.from("products").select("*").order("categoria");
+    const { data } = await supabase.from("products").select("*").order("grupo");
     if (data && data.length > 0) setProducts(data);
     else setProducts(CATALOG_DATA);
   }
@@ -96,7 +99,6 @@ export default function AdminView() {
 function StatsRow({ quotes, productCount }: { quotes: Cotizacion[]; productCount: number }) {
   const pendientes = quotes.filter((q) => q.estado === "pendiente").length;
   const atendidas = quotes.filter((q) => q.estado === "atendida").length;
-  const totalAtendido = quotes.filter((q) => q.estado === "atendida").reduce((s, q) => s + q.total, 0);
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
@@ -104,7 +106,6 @@ function StatsRow({ quotes, productCount }: { quotes: Cotizacion[]; productCount
       <StatCard label="Pendientes" value={pendientes} highlight />
       <StatCard label="Atendidas" value={atendidas} />
       <StatCard label="Productos activos" value={productCount} />
-      <StatCard label="Total cotizado (atendido)" value={formatCurrency(totalAtendido)} mono />
     </div>
   );
 }
@@ -205,8 +206,6 @@ function QuotesPanel({ quotes, loading, onRefresh }: { quotes: Cotizacion[]; loa
             <div style={{ fontWeight: 600, marginTop: 4, fontSize: 14 }}>{q.datos.nombre}</div>
             <div style={{ display: "flex", gap: 6, fontSize: 12, color: "var(--ink-mute)", marginTop: 2 }}>
               <span>{q.cart.length} producto{q.cart.length !== 1 ? "s" : ""}</span>
-              <span>·</span>
-              <span style={{ fontFamily: "monospace", color: "var(--primary)", fontWeight: 600 }}>{formatCurrency(q.total)}</span>
             </div>
             <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 4 }}>{formatDate(q.fecha)}</div>
           </div>
@@ -255,8 +254,8 @@ function QuotesPanel({ quotes, loading, onRefresh }: { quotes: Cotizacion[]; loa
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "var(--bg)" }}>
-                  {["Código", "Descripción", "Dimensiones", "Cant.", "P. Unit.", "Subtotal"].map((h, i) => (
-                    <th key={h} style={{ padding: "8px 10px", textAlign: i >= 3 ? "right" : "left", fontSize: 11, textTransform: "uppercase", color: "var(--ink-mute)" }}>{h}</th>
+                  {["Código", "Descripción", "Grupo", "Sub clasificación", "Color", "Cant."].map((h) => (
+                    <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 11, textTransform: "uppercase", color: "var(--ink-mute)" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -265,19 +264,13 @@ function QuotesPanel({ quotes, loading, onRefresh }: { quotes: Cotizacion[]; loa
                   <tr key={item.codigo}>
                     <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 11, color: "var(--ink-soft)", borderBottom: "1px solid var(--border)" }}>{item.codigo}</td>
                     <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>{item.descripcion}</td>
-                    <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 11, borderBottom: "1px solid var(--border)" }}>{item.dimensiones}</td>
-                    <td style={{ padding: "8px 10px", textAlign: "right", borderBottom: "1px solid var(--border)" }}>{item.cantidad}</td>
-                    <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: "monospace", borderBottom: "1px solid var(--border)" }}>{formatCurrency(item.precio)}</td>
-                    <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, fontFamily: "monospace", borderBottom: "1px solid var(--border)" }}>{formatCurrency(item.precio * item.cantidad)}</td>
+                    <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>{item.grupo}</td>
+                    <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>{item.subclasificacion}</td>
+                    <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>{item.color}</td>
+                    <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>{item.cantidad}</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot>
-                <tr style={{ background: "var(--primary-light)" }}>
-                  <td colSpan={5} style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, color: "var(--primary)" }}>TOTAL ESTIMADO</td>
-                  <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, fontFamily: "monospace", color: "var(--primary)" }}>{formatCurrency(selected.total)}</td>
-                </tr>
-              </tfoot>
             </table>
 
             {selected.datos.notas && (
@@ -318,9 +311,9 @@ function CatalogPanel({ products, onRefresh }: { products: Producto[]; onRefresh
   const fileRef = useRef<HTMLInputElement>(null);
 
   const categories = products.reduce((acc: Record<string, { total: number; inStock: number }>, p) => {
-    if (!acc[p.categoria]) acc[p.categoria] = { total: 0, inStock: 0 };
-    acc[p.categoria].total++;
-    if (p.stock > 0) acc[p.categoria].inStock++;
+    if (!acc[p.grupo]) acc[p.grupo] = { total: 0, inStock: 0 };
+    acc[p.grupo].total++;
+    if (p.stock > 0) acc[p.grupo].inStock++;
     return acc;
   }, {});
 
@@ -330,11 +323,13 @@ function CatalogPanel({ products, onRefresh }: { products: Producto[]; onRefresh
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(buffer, { type: "array" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
+      // Usar Hoja2 si existe, sino la primera
+      const sheetName = wb.SheetNames.length > 1 ? wb.SheetNames[1] : wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
       const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1 }) as string[][];
 
       const headerRow = rows.findIndex((r) =>
-        r.some((c) => typeof c === "string" && /codig|descrip/i.test(c))
+        r.some((c) => typeof c === "string" && /numero|articulo|descripcion/i.test(c))
       );
       if (headerRow === -1) throw new Error("No se encontró fila de encabezados");
 
@@ -343,18 +338,24 @@ function CatalogPanel({ products, onRefresh }: { products: Producto[]; onRefresh
       );
 
       const col = (names: string[]) => headers.findIndex((h) => names.some((n) => h.includes(n)));
-      const ci = { codigo: col(["codig"]), descripcion: col(["descrip"]), categoria: col(["categ"]), dimensiones: col(["dimens", "medid"]), precio: col(["precio"]), stock: col(["stock", "inventar", "existenc"]), unidad: col(["unidad"]) };
+      const ci = {
+        codigo: col(["numero", "articulo"]),
+        descripcion: col(["descrip"]),
+        grupo: col(["grupo"]),
+        subclasificacion: col(["sub", "clasif"]),
+        color: col(["color"]),
+        stock: col(["stock"]),
+      };
 
       const parsed: Producto[] = rows.slice(headerRow + 1)
         .filter((r) => r[ci.codigo])
         .map((r) => ({
           codigo: String(r[ci.codigo] ?? "").trim(),
           descripcion: String(r[ci.descripcion] ?? "").trim(),
-          categoria: String(r[ci.categoria] ?? "").trim(),
-          dimensiones: ci.dimensiones >= 0 ? String(r[ci.dimensiones] ?? "").trim() : "",
-          precio: parseFloat(String(r[ci.precio] ?? "0").replace(/[,$]/g, "")) || 0,
-          stock: ci.stock >= 0 ? parseInt(String(r[ci.stock] ?? "0")) || 0 : 10,
-          unidad: ((ci.unidad >= 0 ? String(r[ci.unidad] ?? "") : "pieza").toLowerCase().includes("hoja") ? "hoja" : "pieza") as "hoja" | "pieza",
+          grupo: String(r[ci.grupo] ?? "").trim(),
+          subclasificacion: ci.subclasificacion >= 0 ? String(r[ci.subclasificacion] ?? "").trim() : "",
+          color: ci.color >= 0 ? String(r[ci.color] ?? "").trim() : "",
+          stock: ci.stock >= 0 ? parseInt(String(r[ci.stock] ?? "0")) || 0 : 0,
         }))
         .filter((p) => p.codigo && p.descripcion);
 
@@ -391,7 +392,7 @@ function CatalogPanel({ products, onRefresh }: { products: Producto[]; onRefresh
       <div style={{ background: "white", padding: 24, borderRadius: "var(--radius-lg)", border: "1px solid var(--border)" }}>
         <h3 style={{ margin: "0 0 6px", fontSize: 16 }}>Actualizar catálogo</h3>
         <p style={{ color: "var(--ink-mute)", fontSize: 13, margin: "0 0 16px" }}>
-          Sube un archivo <code style={{ background: "var(--bg)", padding: "1px 6px", borderRadius: 3, fontSize: 11, color: "var(--primary)" }}>.xlsx</code> con columnas: Código, Descripción, Categoría, Dimensiones, Precio, Stock, Unidad.
+          Sube un archivo <code style={{ background: "var(--bg)", padding: "1px 6px", borderRadius: 3, fontSize: 11, color: "var(--primary)" }}>.xlsx</code> con columnas: Número de artículo, Descripción, Nombre de grupo, Sub clasificación, Color, En stock.
         </p>
         <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
         <label
