@@ -98,3 +98,31 @@ CREATE POLICY "company_public_update" ON company_settings FOR UPDATE USING (TRUE
 --   ('02P016', 'PERFIL VINIL NEGRO 02-9', 'EMPAQUE', 'VINILES', 'NEGRO', 600)
 --   -- ... (agrega aquí todos los productos o usa el panel de admin para subir el Excel)
 -- ) AS t(codigo, descripcion, grupo, subclasificacion, color, stock);
+
+-- =====================================================
+-- 6. TABLA VENTAS CERRADAS
+-- =====================================================
+CREATE TABLE IF NOT EXISTS closed_sales (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  quote_id UUID REFERENCES quotes(id) ON DELETE SET NULL,
+  folio TEXT NOT NULL,
+  fecha TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  cliente_nombre TEXT NOT NULL,
+  cliente_telefono TEXT,
+  cliente_email TEXT,
+  monto NUMERIC(10,2) NOT NULL,
+  productos JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE closed_sales ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "closed_sales_public_read" ON closed_sales;
+DROP POLICY IF EXISTS "closed_sales_public_insert" ON closed_sales;
+DROP POLICY IF EXISTS "closed_sales_public_update" ON closed_sales;
+DROP POLICY IF EXISTS "closed_sales_public_delete" ON closed_sales;
+
+CREATE POLICY "closed_sales_public_read" ON closed_sales FOR SELECT USING (TRUE);
+CREATE POLICY "closed_sales_public_insert" ON closed_sales FOR INSERT WITH CHECK (TRUE);
+CREATE POLICY "closed_sales_public_update" ON closed_sales FOR UPDATE USING (TRUE);
+CREATE POLICY "closed_sales_public_delete" ON closed_sales FOR DELETE USING (TRUE);

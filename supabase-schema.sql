@@ -35,6 +35,20 @@ CREATE TABLE IF NOT EXISTS quote_items (
   cantidad INTEGER NOT NULL
 );
 
+-- Tabla de ventas cerradas
+CREATE TABLE IF NOT EXISTS closed_sales (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  quote_id UUID REFERENCES quotes(id) ON DELETE SET NULL,
+  folio TEXT NOT NULL,
+  fecha TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  cliente_nombre TEXT NOT NULL,
+  cliente_telefono TEXT,
+  cliente_email TEXT,
+  monto NUMERIC(10,2) NOT NULL,
+  productos JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Tabla de configuración de empresa (una sola fila)
 CREATE TABLE IF NOT EXISTS company_settings (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -51,6 +65,7 @@ CREATE TABLE IF NOT EXISTS company_settings (
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quotes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quote_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE closed_sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE company_settings ENABLE ROW LEVEL SECURITY;
 
 -- Lectura pública del catálogo
@@ -85,6 +100,19 @@ CREATE POLICY "products_public_update" ON products
   FOR UPDATE USING (TRUE);
 
 CREATE POLICY "products_public_delete" ON products
+  FOR DELETE USING (TRUE);
+
+-- Ventas cerradas (admin puede gestionar)
+CREATE POLICY "closed_sales_public_read" ON closed_sales
+  FOR SELECT USING (TRUE);
+
+CREATE POLICY "closed_sales_public_insert" ON closed_sales
+  FOR INSERT WITH CHECK (TRUE);
+
+CREATE POLICY "closed_sales_public_update" ON closed_sales
+  FOR UPDATE USING (TRUE);
+
+CREATE POLICY "closed_sales_public_delete" ON closed_sales
   FOR DELETE USING (TRUE);
 
 -- Empresa (lectura pública, escritura pública para MVP)

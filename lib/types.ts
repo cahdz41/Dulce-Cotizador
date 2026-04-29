@@ -31,6 +31,18 @@ export type Cotizacion = {
   cart: CartItem[];
 };
 
+export type VentaCerrada = {
+  id?: string;
+  quote_id: string;
+  folio: string;
+  fecha: string;
+  cliente_nombre: string;
+  cliente_telefono?: string;
+  cliente_email?: string;
+  monto: number;
+  productos: CartItem[];
+};
+
 export type Empresa = {
   nombre: string;
   giro: string;

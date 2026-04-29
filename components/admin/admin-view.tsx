@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { MessageCircle, Mail, Trash2, Check, RotateCcw, Upload, Save } from "lucide-react";
-import { Cotizacion, Empresa, Producto } from "@/lib/types";
+import { Cotizacion, Empresa, Producto, VentaCerrada } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useEmpresa } from "@/lib/empresa-context";
@@ -11,17 +11,19 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import PhotoManager from "@/components/admin/photo-manager";
 
-type Tab = "cotizaciones" | "catalogo" | "empresa" | "fotos";
+type Tab = "cotizaciones" | "catalogo" | "empresa" | "fotos" | "ventas";
 
 export default function AdminView() {
   const [tab, setTab] = useState<Tab>("cotizaciones");
   const [quotes, setQuotes] = useState<Cotizacion[]>([]);
   const [products, setProducts] = useState<Producto[]>([]);
+  const [ventas, setVentas] = useState<VentaCerrada[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadQuotes();
     loadProducts();
+    loadVentas();
   }, []);
 
   async function loadQuotes() {
@@ -58,6 +60,23 @@ export default function AdminView() {
     else setProducts(CATALOG_DATA);
   }
 
+  async function loadVentas() {
+    const { data } = await supabase.from("closed_sales").select("*").order("fecha", { ascending: false });
+    if (data) {
+      setVentas(data.map((v: any) => ({
+        id: v.id,
+        quote_id: v.quote_id,
+        folio: v.folio,
+        fecha: v.fecha,
+        cliente_nombre: v.cliente_nombre,
+        cliente_telefono: v.cliente_telefono,
+        cliente_email: v.cliente_email,
+        monto: v.monto,
+        productos: v.productos,
+      })));
+    }
+  }
+
   const pendientes = quotes.filter((q) => q.estado === "pendiente").length;
 
   return (
@@ -77,6 +96,7 @@ export default function AdminView() {
           <TabBtn active={tab === "catalogo"} onClick={() => setTab("catalogo")}>Catálogo</TabBtn>
           <TabBtn active={tab === "empresa"} onClick={() => setTab("empresa")}>Datos de empresa</TabBtn>
           <TabBtn active={tab === "fotos"} onClick={() => setTab("fotos")}>Fotos de productos</TabBtn>
+          <TabBtn active={tab === "ventas"} onClick={() => setTab("ventas")}>Ventas cerradas</TabBtn>
         </div>
 
         {tab === "cotizaciones" && <QuotesPanel quotes={quotes} loading={loading} onRefresh={loadQuotes} />}
@@ -91,6 +111,7 @@ export default function AdminView() {
             <PhotoManager products={products} />
           </div>
         )}
+        {tab === "ventas" && <VentasPanel quotes={quotes} ventas={ventas} onRefresh={() => { loadQuotes(); loadVentas(); }} />}
       </div>
     </main>
   );
@@ -347,6 +368,13 @@ function CatalogPanel({ products, onRefresh }: { products: Producto[]; onRefresh
         stock: col(["stock"]),
       };
 
+      // Leer imágenes actuales antes de borrar
+      const { data: existing } = await supabase.from("products").select("codigo,imagen");
+      const imagenPorCodigo: Record<string, string> = {};
+      if (existing) {
+        existing.forEach((p: any) => { if (p.imagen) imagenPorCodigo[p.codigo] = p.imagen; });
+      }
+
       const parsed: Producto[] = rows.slice(headerRow + 1)
         .filter((r) => r[ci.codigo])
         .map((r) => ({
@@ -356,6 +384,7 @@ function CatalogPanel({ products, onRefresh }: { products: Producto[]; onRefresh
           subclasificacion: ci.subclasificacion >= 0 ? String(r[ci.subclasificacion] ?? "").trim() : "",
           color: ci.color >= 0 ? String(r[ci.color] ?? "").trim() : "",
           stock: ci.stock >= 0 ? parseInt(String(r[ci.stock] ?? "0")) || 0 : 0,
+          imagen: imagenPorCodigo[String(r[ci.codigo] ?? "").trim()] || undefined,
         }))
         .filter((p) => p.codigo && p.descripcion);
 
@@ -376,10 +405,22 @@ function CatalogPanel({ products, onRefresh }: { products: Producto[]; onRefresh
     setUploadStatus("loading");
     setUploadMsg("Restaurando catálogo precargado...");
     try {
+      // Leer imágenes actuales antes de borrar
+      const { data: existing } = await supabase.from("products").select("codigo,imagen");
+      const imagenPorCodigo: Record<string, string> = {};
+      if (existing) {
+        existing.forEach((p: any) => { if (p.imagen) imagenPorCodigo[p.codigo] = p.imagen; });
+      }
+
+      const restored = CATALOG_DATA.map((p) => ({
+        ...p,
+        imagen: imagenPorCodigo[p.codigo] || p.imagen,
+      }));
+
       await supabase.from("products").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      await supabase.from("products").insert(CATALOG_DATA);
+      await supabase.from("products").insert(restored);
       setUploadStatus("success");
-      setUploadMsg(`✓ Catálogo restaurado (${CATALOG_DATA.length} productos)`);
+      setUploadMsg(`✓ Catálogo restaurado (${restored.length} productos)`);
       onRefresh();
     } catch {
       setUploadStatus("error");
@@ -435,6 +476,153 @@ function CatalogPanel({ products, onRefresh }: { products: Producto[]; onRefresh
       </div>
 
       <style>{`@media (max-width: 900px) { .catalog-admin-grid { grid-template-columns: 1fr !important; } }`}</style>
+    </div>
+  );
+}
+
+function VentasPanel({ quotes, ventas, onRefresh }: { quotes: Cotizacion[]; ventas: VentaCerrada[]; onRefresh: () => void }) {
+  const [selected, setSelected] = useState<Cotizacion | null>(null);
+  const [monto, setMonto] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const atendidas = quotes.filter((q) => q.estado === "atendida" && !ventas.some((v) => v.quote_id === q.id));
+  const totalVentas = ventas.reduce((sum, v) => sum + v.monto, 0);
+
+  async function handleCerrarVenta() {
+    if (!selected || !monto.trim()) return;
+    setSaving(true);
+    try {
+      await supabase.from("closed_sales").insert({
+        quote_id: selected.id,
+        folio: selected.folio,
+        cliente_nombre: selected.datos.nombre,
+        cliente_telefono: selected.datos.telefono,
+        cliente_email: selected.datos.email || null,
+        monto: parseFloat(monto),
+        productos: selected.cart,
+      });
+      toast.success("Venta cerrada correctamente");
+      setSelected(null);
+      setMonto("");
+      onRefresh();
+    } catch {
+      toast.error("Error al cerrar la venta");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20 }} className="ventas-grid">
+      {/* Panel izquierdo: Cotizaciones atendidas */}
+      <div style={{ background: "white", padding: 24, borderRadius: "var(--radius-lg)", border: "1px solid var(--border)" }}>
+        <h3 style={{ margin: "0 0 6px", fontSize: 16 }}>Cotizaciones atendidas pendientes</h3>
+        <p style={{ color: "var(--ink-mute)", fontSize: 13, margin: "0 0 16px" }}>
+          Selecciona una cotización para registrarla como venta cerrada
+        </p>
+
+        {atendidas.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 40, color: "var(--ink-mute)" }}>
+            No hay cotizaciones atendidas pendientes
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: "60vh", overflowY: "auto" }}>
+            {atendidas.map((q) => (
+              <div
+                key={q.id}
+                onClick={() => { setSelected(q); setMonto(""); }}
+                style={{
+                  padding: "12px 14px", borderRadius: "var(--radius)", cursor: "pointer",
+                  border: `1px solid ${selected?.id === q.id ? "var(--primary)" : "var(--border)"}`,
+                  background: selected?.id === q.id ? "var(--primary-light)" : "white",
+                  transition: "all 0.15s",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontFamily: "monospace", fontSize: 11, color: "var(--ink-soft)" }}>{q.folio}</span>
+                  <span style={{ fontSize: 11, color: "var(--success)", fontWeight: 600 }}>Atendida</span>
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 14, marginTop: 4 }}>{q.datos.nombre}</div>
+                <div style={{ fontSize: 12, color: "var(--ink-mute)", marginTop: 2 }}>
+                  {q.cart.length} productos · {formatDate(q.fecha)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Panel derecho: Detalle y ventas cerradas */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Formulario para cerrar venta */}
+        {selected && (
+          <div style={{ background: "white", padding: 24, borderRadius: "var(--radius-lg)", border: "1px solid var(--border)" }}>
+            <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--primary)" }}>Cerrar venta</h4>
+            <div style={{ fontSize: 13, marginBottom: 12 }}>
+              <strong>{selected.datos.nombre}</strong>
+              <div style={{ color: "var(--ink-mute)", marginTop: 2 }}>{selected.datos.telefono}</div>
+              <div style={{ color: "var(--ink-mute)", fontSize: 11 }}>{selected.cart.length} productos</div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: "block", fontSize: 11, color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4, fontWeight: 600 }}>
+                Monto final de venta ($)
+              </label>
+              <input
+                type="number"
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+                placeholder="Ej: 12500.50"
+                style={{ width: "100%", padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 6, outline: "none", fontSize: 14 }}
+              />
+            </div>
+            <button
+              onClick={handleCerrarVenta}
+              disabled={saving || !monto.trim()}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                width: "100%", padding: "10px 16px", background: "var(--success)", color: "white",
+                borderRadius: "var(--radius)", fontWeight: 600, fontSize: 13, opacity: saving || !monto.trim() ? 0.6 : 1,
+              }}
+            >
+              <Check size={14} /> {saving ? "Guardando..." : "Registrar venta cerrada"}
+            </button>
+          </div>
+        )}
+
+        {/* Historial de ventas cerradas */}
+        <div style={{ background: "white", padding: 24, borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", flex: 1 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <h4 style={{ margin: 0, fontSize: 14, color: "var(--primary)" }}>Ventas cerradas</h4>
+            <span style={{ fontSize: 18, fontWeight: 700, color: "var(--primary)", fontFamily: "monospace" }}>
+              ${totalVentas.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          {ventas.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 40, color: "var(--ink-mute)", fontSize: 13 }}>
+              Aún no hay ventas registradas
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: "50vh", overflowY: "auto" }}>
+              {ventas.map((v) => (
+                <div key={v.id} style={{ padding: "10px 12px", background: "var(--bg)", borderRadius: 6 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>{v.cliente_nombre}</span>
+                    <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "var(--primary)" }}>
+                      ${v.monto.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--ink-mute)", marginTop: 2 }}>
+                    {v.folio} · {formatDate(v.fecha)} · {v.productos.length} productos
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <style>{`@media (max-width: 900px) { .ventas-grid { grid-template-columns: 1fr !important; } }`}</style>
     </div>
   );
 }

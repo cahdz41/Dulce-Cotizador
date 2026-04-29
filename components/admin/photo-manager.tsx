@@ -36,8 +36,20 @@ export default function PhotoManager({ products: initialProducts }: Props) {
   async function syncCatalog() {
     setSyncing(true)
     try {
+      // Leer imágenes actuales antes de borrar
+      const { data: existing } = await supabase.from('products').select('codigo,imagen')
+      const imagenPorCodigo: Record<string, string> = {}
+      if (existing) {
+        existing.forEach((p: any) => { if (p.imagen) imagenPorCodigo[p.codigo] = p.imagen })
+      }
+
+      const restored = CATALOG_DATA.map((p) => ({
+        ...p,
+        imagen: imagenPorCodigo[p.codigo] || p.imagen,
+      }))
+
       await supabase.from('products').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-      await supabase.from('products').insert(CATALOG_DATA)
+      await supabase.from('products').insert(restored)
       const { data } = await supabase.from('products').select('*').order('grupo')
       if (data && data.length > 0) {
         setProducts(data as Producto[])
