@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Producto } from "@/lib/types";
 import { CATALOG_DATA } from "@/lib/catalog-data";
-import { supabase } from "@/lib/supabase";
 import Topbar from "./topbar";
 import CatalogView from "./catalog/catalog-view";
 import CheckoutView from "./checkout/checkout-view";
@@ -15,16 +14,7 @@ type ClientStep = "catalog" | "checkout";
 export default function MainApp() {
   const [mode, setMode] = useState<Mode>("cliente");
   const [clientStep, setClientStep] = useState<ClientStep>("catalog");
-  const [products, setProducts] = useState<Producto[]>(CATALOG_DATA);
-
-  useEffect(() => {
-    supabase.from("products").select("*").then(({ data }) => {
-      // Solo usar datos de Supabase si tienen la nueva estructura (campo grupo)
-      if (data && data.length > 0 && data[0].grupo !== undefined) {
-        setProducts(data as Producto[]);
-      }
-    });
-  }, [mode]);
+  const [products] = useState<Producto[]>(CATALOG_DATA);
 
   function handleModeChange(m: Mode) {
     setMode(m);
