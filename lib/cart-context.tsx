@@ -6,7 +6,7 @@ import { CartItem, Producto } from "./types";
 type CartState = { items: CartItem[] };
 
 type CartAction =
-  | { type: "ADD"; product: Producto; cantidad: number }
+  | { type: "ADD"; product: Producto; cantidad: number; corte?: "horizontal" | "vertical" }
   | { type: "REMOVE"; codigo: string }
   | { type: "UPDATE_QTY"; codigo: string; cantidad: number }
   | { type: "CLEAR" };
@@ -24,7 +24,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           ),
         };
       }
-      return { items: [...state.items, { ...action.product, cantidad: action.cantidad }] };
+      return { items: [...state.items, { ...action.product, cantidad: action.cantidad, corte: action.corte }] };
     }
     case "REMOVE":
       return { items: state.items.filter((i) => i.codigo !== action.codigo) };
@@ -47,7 +47,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 type CartContextType = {
   items: CartItem[];
   count: number;
-  add: (product: Producto, cantidad?: number) => void;
+  add: (product: Producto, cantidad?: number, corte?: "horizontal" | "vertical") => void;
   remove: (codigo: string) => void;
   updateQty: (codigo: string, cantidad: number) => void;
   clear: () => void;
@@ -65,7 +65,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       value={{
         items: state.items,
         count,
-        add: (product, cantidad = 1) => dispatch({ type: "ADD", product, cantidad }),
+        add: (product, cantidad = 1, corte) => dispatch({ type: "ADD", product, cantidad, corte }),
         remove: (codigo) => dispatch({ type: "REMOVE", codigo }),
         updateQty: (codigo, cantidad) => dispatch({ type: "UPDATE_QTY", codigo, cantidad }),
         clear: () => dispatch({ type: "CLEAR" }),

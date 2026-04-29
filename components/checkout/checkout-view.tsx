@@ -92,6 +92,7 @@ export default function CheckoutView({ onBack }: Props) {
         <td>${item.grupo}</td>
         <td>${item.subclasificacion}</td>
         <td>${item.color}</td>
+        <td>${item.corte ? item.corte : "—"}</td>
         <td style="text-align:center;">${item.cantidad}</td>
       </tr>`).join("");
 
@@ -133,7 +134,7 @@ export default function CheckoutView({ onBack }: Props) {
     </div>
     <table>
       <thead><tr>
-        <th>Código</th><th>Descripción</th><th>Grupo</th><th>Sub clasificación</th><th>Color</th>
+        <th>Código</th><th>Descripción</th><th>Grupo</th><th>Sub clasificación</th><th>Color</th><th>Corte</th>
         <th class="num">Cant.</th>
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -318,7 +319,7 @@ function OrderSummary() {
       <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 320, overflowY: "auto" }}>
         {items.map((item) => (
           <div key={item.codigo} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13, paddingBottom: 10, borderBottom: "1px dashed var(--border)" }}>
-            <span>{item.descripcion} <span style={{ color: "var(--ink-soft)" }}>({item.color})</span> × {item.cantidad}</span>
+            <span>{item.descripcion} <span style={{ color: "var(--ink-soft)" }}>({item.color}{item.corte ? `, ${item.corte}` : ""})</span> × {item.cantidad}</span>
           </div>
         ))}
       </div>
@@ -371,8 +372,8 @@ function PDFPreview({ datos, folio, empresa, items }: { datos: DatosCliente; fol
       <table style={{ width: "100%", borderCollapse: "collapse", margin: "16px 0" }}>
         <thead>
           <tr style={{ background: "var(--primary)", color: "white" }}>
-            {["Código", "Descripción", "Grupo", "Sub clasificación", "Color", "Cant."].map((h, i) => (
-              <th key={h} style={{ textAlign: i >= 5 ? "right" : "left", padding: "8px 10px", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
+            {["Código", "Descripción", "Grupo", "Sub clasificación", "Color", "Corte", "Cant."].map((h, i) => (
+              <th key={h} style={{ textAlign: i >= 6 ? "right" : "left", padding: "8px 10px", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -384,6 +385,7 @@ function PDFPreview({ datos, folio, empresa, items }: { datos: DatosCliente; fol
               <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>{item.grupo}</td>
               <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>{item.subclasificacion}</td>
               <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>{item.color}</td>
+              <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)", textTransform: "capitalize" }}>{item.corte || "—"}</td>
               <td style={{ padding: "8px 10px", textAlign: "right", borderBottom: "1px solid var(--border)" }}>{item.cantidad}</td>
             </tr>
           ))}

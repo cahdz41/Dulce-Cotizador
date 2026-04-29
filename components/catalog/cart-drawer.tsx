@@ -61,6 +61,11 @@ export default function CartDrawer({ onClose, onCheckout }: Props) {
                   <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
                     Color: <strong>{item.color}</strong>
                   </div>
+                  {item.corte && (
+                    <div style={{ fontSize: 11, color: "var(--primary)", marginTop: 2, fontWeight: 600 }}>
+                      Corte: {item.corte}
+                    </div>
+                  )}
                   <div style={{ fontSize: 12, color: "var(--ink-mute)", marginTop: 4 }}>
                     Cantidad: {item.cantidad}
                   </div>

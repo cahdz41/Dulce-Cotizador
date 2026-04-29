@@ -11,6 +11,7 @@ export type Producto = {
 
 export type CartItem = Producto & {
   cantidad: number;
+  corte?: "horizontal" | "vertical";
 };
 
 export type DatosCliente = {

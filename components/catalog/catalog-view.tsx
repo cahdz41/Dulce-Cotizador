@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef } from "react";
 import { Search, X, LayoutGrid, List, ShoppingCart, ZoomIn } from "lucide-react";
 import { Producto } from "@/lib/types";
-import { fuzzyScore } from "@/lib/utils";
+import { fuzzyScore, permiteMediosTramos, permiteCorte, tieneMedidasEspecialesVidrio, generarOpcionesCantidad } from "@/lib/utils";
 import { useCart } from "@/lib/cart-context";
 import GlassRender from "@/components/glass-render";
 import CartDrawer from "./cart-drawer";
@@ -80,8 +80,8 @@ export default function CatalogView({ products, onCheckout }: Props) {
       .map((x) => x.p);
   }, [query, representatives]);
 
-  function handleAddToCart(product: Producto, cantidad: number) {
-    add(product, cantidad);
+  function handleAddToCart(product: Producto, cantidad: number, corte?: "horizontal" | "vertical") {
+    add(product, cantidad, corte);
     toast.success(`${product.descripcion} agregado al carrito`);
   }
 
@@ -344,10 +344,16 @@ function ViewBtn({ active, onClick, icon, label }: { active: boolean; onClick: (
   );
 }
 
-function ProductCard({ product: p, variants, onAdd, onZoom }: { product: Producto; variants: Producto[]; onAdd: (p: Producto, qty: number) => void; onZoom: () => void }) {
+function ProductCard({ product: p, variants, onAdd, onZoom }: { product: Producto; variants: Producto[]; onAdd: (p: Producto, qty: number, corte?: "horizontal" | "vertical") => void; onZoom: () => void }) {
   const [qty, setQty] = useState(1);
+  const [corte, setCorte] = useState<"horizontal" | "vertical">("horizontal");
   const hasMultipleColors = variants.length > 1;
   const colorLabel = hasMultipleColors ? `${variants.length} acabados` : p.color;
+
+  const esVidrioEspecial = permiteCorte(p.grupo) && tieneMedidasEspecialesVidrio(p.descripcion);
+  const esMedioTramo = permiteMediosTramos(p.grupo) || (permiteCorte(p.grupo) && !esVidrioEspecial);
+  const opcionesVidrio = esVidrioEspecial ? generarOpcionesCantidad(p.stock, true) : [];
+  const muestraCorte = permiteCorte(p.grupo) && qty === 0.5;
 
   return (
     <div style={{
@@ -414,17 +420,33 @@ function ProductCard({ product: p, variants, onAdd, onZoom }: { product: Product
             </span>
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", height: 30 }}>
-              <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 26, height: 28, background: "var(--bg)", color: "var(--ink)", fontSize: 14, fontWeight: 600 }}>−</button>
-              <input
-                type="number" value={qty} min={1} max={p.stock}
-                onChange={(e) => setQty(Math.max(1, Math.min(p.stock, parseInt(e.target.value) || 1)))}
-                style={{ width: 36, textAlign: "center", border: "none", outline: "none", fontSize: 13, fontWeight: 600, padding: 0 }}
-              />
-              <button onClick={() => setQty(Math.min(p.stock, qty + 1))} style={{ width: 26, height: 28, background: "var(--bg)", color: "var(--ink)", fontSize: 14, fontWeight: 600 }}>+</button>
-            </div>
+            {esVidrioEspecial ? (
+              <select
+                value={qty}
+                onChange={(e) => setQty(parseFloat(e.target.value))}
+                style={{ padding: "6px 8px", borderRadius: 6, border: "1px solid var(--border)", fontSize: 13, fontWeight: 600, minWidth: 60 }}
+              >
+                {opcionesVidrio.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", height: 30 }}>
+                <button onClick={() => setQty(Math.max(esMedioTramo ? 0.5 : 1, qty - (esMedioTramo ? 0.5 : 1)))} style={{ width: 26, height: 28, background: "var(--bg)", color: "var(--ink)", fontSize: 14, fontWeight: 600 }}>−</button>
+                <input
+                  type="number" value={qty} min={esMedioTramo ? 0.5 : 1} max={p.stock} step={esMedioTramo ? 0.5 : 1}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    const min = esMedioTramo ? 0.5 : 1;
+                    setQty(Math.max(min, Math.min(p.stock, isNaN(val) ? min : val)));
+                  }}
+                  style={{ width: 40, textAlign: "center", border: "none", outline: "none", fontSize: 13, fontWeight: 600, padding: 0 }}
+                />
+                <button onClick={() => setQty(Math.min(p.stock, qty + (esMedioTramo ? 0.5 : 1)))} style={{ width: 26, height: 28, background: "var(--bg)", color: "var(--ink)", fontSize: 14, fontWeight: 600 }}>+</button>
+              </div>
+            )}
             <button
-              onClick={() => onAdd(p, qty)}
+              onClick={() => onAdd(p, qty, muestraCorte ? corte : undefined)}
               style={{
                 display: "flex", alignItems: "center", gap: 5,
                 padding: "7px 12px", background: "var(--primary)", color: "white",
@@ -434,6 +456,28 @@ function ProductCard({ product: p, variants, onAdd, onZoom }: { product: Product
               + Agregar
             </button>
           </div>
+          {muestraCorte && (
+            <div style={{ marginTop: 8, padding: 8, background: "var(--primary-light)", borderRadius: 6, border: "1px solid var(--primary-soft)" }}>
+              <label style={{ display: "block", fontSize: 10, color: "var(--primary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Definir corte</label>
+              <div style={{ display: "flex", gap: 6 }}>
+                {(["horizontal", "vertical"] as const).map((dir) => (
+                  <button
+                    key={dir}
+                    onClick={() => setCorte(dir)}
+                    style={{
+                      flex: 1, padding: "4px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
+                      border: `2px solid ${corte === dir ? "var(--primary)" : "var(--border)"}`,
+                      background: corte === dir ? "white" : "transparent",
+                      color: corte === dir ? "var(--primary)" : "var(--ink)",
+                      textTransform: "capitalize", cursor: "pointer",
+                    }}
+                  >
+                    {dir}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -446,7 +490,7 @@ function ProductCard({ product: p, variants, onAdd, onZoom }: { product: Product
 
 function ListView({ groups, onAdd, onZoom }: {
   groups: Record<string, Producto[]>;
-  onAdd: (p: Producto, qty: number) => void;
+  onAdd: (p: Producto, qty: number, corte?: "horizontal" | "vertical") => void;
   onZoom: (p: Producto) => void;
 }) {
   return (
@@ -473,8 +517,16 @@ function ListView({ groups, onAdd, onZoom }: {
   );
 }
 
-function ListRow({ product: p, onAdd, onZoom }: { product: Producto; onAdd: (p: Producto, qty: number) => void; onZoom: (p: Producto) => void }) {
+function ListRow({ product: p, onAdd, onZoom }: { product: Producto; onAdd: (p: Producto, qty: number, corte?: "horizontal" | "vertical") => void; onZoom: (p: Producto) => void }) {
   const [qty, setQty] = useState(1);
+  const [corte, setCorte] = useState<"horizontal" | "vertical">("horizontal");
+  const esVidrioEspecial = permiteCorte(p.grupo) && tieneMedidasEspecialesVidrio(p.descripcion);
+  const esMedioTramo = permiteMediosTramos(p.grupo) || (permiteCorte(p.grupo) && !esVidrioEspecial);
+  const opcionesVidrio = esVidrioEspecial ? generarOpcionesCantidad(p.stock, true) : [];
+  const minQty = esMedioTramo ? 0.5 : 1;
+  const stepQty = esMedioTramo ? 0.5 : 1;
+  const muestraCorte = permiteCorte(p.grupo) && qty === 0.5;
+
   return (
     <div style={{
       display: "grid", gridTemplateColumns: "64px 90px 1fr 130px 80px 100px auto",
@@ -494,15 +546,47 @@ function ListRow({ product: p, onAdd, onZoom }: { product: Producto; onAdd: (p: 
       <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>{p.subclasificacion || "—"}</span>
       <span style={{ fontSize: 11, color: "var(--success)", fontWeight: 500 }}>En stock</span>
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", height: 26 }}>
-          <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 22, height: 24, background: "var(--bg)", color: "var(--ink)", fontSize: 12, fontWeight: 600 }}>−</button>
-          <span style={{ display: "inline-block", minWidth: 22, textAlign: "center", fontSize: 12, fontWeight: 600 }}>{qty}</span>
-          <button onClick={() => setQty(Math.min(p.stock, qty + 1))} style={{ width: 22, height: 24, background: "var(--bg)", color: "var(--ink)", fontSize: 12, fontWeight: 600 }}>+</button>
-        </div>
-        <button onClick={() => onAdd(p, qty)} style={{ padding: "5px 10px", background: "var(--primary)", color: "white", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+        {esVidrioEspecial ? (
+          <select
+            value={qty}
+            onChange={(e) => setQty(parseFloat(e.target.value))}
+            style={{ padding: "4px 6px", borderRadius: 4, border: "1px solid var(--border)", fontSize: 12, fontWeight: 600, minWidth: 50 }}
+          >
+            {opcionesVidrio.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", height: 26 }}>
+            <button onClick={() => setQty(Math.max(minQty, parseFloat((qty - stepQty).toFixed(2))))} style={{ width: 22, height: 24, background: "var(--bg)", color: "var(--ink)", fontSize: 12, fontWeight: 600 }}>−</button>
+            <span style={{ display: "inline-block", minWidth: 28, textAlign: "center", fontSize: 12, fontWeight: 600 }}>{qty}</span>
+            <button onClick={() => setQty(Math.min(p.stock, parseFloat((qty + stepQty).toFixed(2))))} style={{ width: 22, height: 24, background: "var(--bg)", color: "var(--ink)", fontSize: 12, fontWeight: 600 }}>+</button>
+          </div>
+        )}
+        <button onClick={() => onAdd(p, qty, muestraCorte ? corte : undefined)} style={{ padding: "5px 10px", background: "var(--primary)", color: "white", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
           + Agregar
         </button>
       </div>
+      {muestraCorte && (
+        <div style={{ gridColumn: "1 / -1", marginTop: 4, padding: "6px 10px", background: "var(--primary-light)", borderRadius: 4, border: "1px solid var(--primary-soft)" }}>
+          <label style={{ fontSize: 10, color: "var(--primary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", marginRight: 8 }}>Definir corte</label>
+          {(["horizontal", "vertical"] as const).map((dir) => (
+            <button
+              key={dir}
+              onClick={() => setCorte(dir)}
+              style={{
+                padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
+                border: `2px solid ${corte === dir ? "var(--primary)" : "var(--border)"}`,
+                background: corte === dir ? "white" : "transparent",
+                color: corte === dir ? "var(--primary)" : "var(--ink)",
+                textTransform: "capitalize", cursor: "pointer", marginRight: 6,
+              }}
+            >
+              {dir}
+            </button>
+          ))}
+        </div>
+      )}
       <style>{`.list-row-hover:hover { background: var(--bg); }`}</style>
     </div>
   );

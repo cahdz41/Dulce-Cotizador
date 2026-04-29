@@ -79,3 +79,43 @@ export function normalizeStr(s: string): string {
     .toLowerCase()
     .trim();
 }
+
+// === Helpers para cantidades especiales por grupo y medidas ===
+
+const MEDIOS_TRAMOS_GRUPOS = new Set(["ALUMINIO", "EUROALUM", "UNATRESOCTAVOS"]);
+const CORTE_GRUPOS = new Set(["ESPEJO", "VIDRIO"]);
+
+export function permiteMediosTramos(grupo: string): boolean {
+  return MEDIOS_TRAMOS_GRUPOS.has(grupo);
+}
+
+export function permiteCorte(grupo: string): boolean {
+  return CORTE_GRUPOS.has(grupo);
+}
+
+export function extraerMedidas(descripcion: string): { a: number; b: number } | null {
+  // Busca patrones como "2.60 X 3.60", "2.6x3.6", "3.6 X 2.60"
+  const match = descripcion.match(/(\d+\.?\d*)\s*[Xx]\s*(\d+\.?\d*)/);
+  if (!match) return null;
+  return { a: parseFloat(match[1]), b: parseFloat(match[2]) };
+}
+
+export function tieneMedidasEspecialesVidrio(descripcion: string): boolean {
+  const medidas = extraerMedidas(descripcion);
+  if (!medidas) return false;
+  // Normalizar: 2.60 → 2.6, 3.60 → 3.6
+  const na = parseFloat(medidas.a.toFixed(1));
+  const nb = parseFloat(medidas.b.toFixed(1));
+  return (na === 2.6 && nb === 3.6) || (na === 3.6 && nb === 2.6);
+}
+
+export function generarOpcionesCantidad(stock: number, esVidrioEspecial: boolean): (number | string)[] {
+  if (esVidrioEspecial) {
+    const opts: (number | string)[] = [0.25, 0.5, 0.74];
+    for (let i = 1; i <= stock; i++) {
+      opts.push(i);
+    }
+    return opts;
+  }
+  return [];
+}
