@@ -175,29 +175,34 @@ export default function CatalogView({ products, onCheckout }: Props) {
         </div>
 
         {/* Filters */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 16, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 280 }}>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <CatPill
-                label="Todos"
-                count={representatives.length}
-                active={activeGrupo === "Todos"}
-                onClick={() => setActiveGrupo("Todos")}
-              />
-              {grupos.map((g) => (
-                <CatPill key={g} label={g} count={representatives.filter((p) => p.grupo === g).length} active={activeGrupo === g} onClick={() => setActiveGrupo(g)} />
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <FilterPill
-                label="Todas las subclasificaciones"
-                active={activeSub === "Todos"}
-                onClick={() => setActiveSub("Todos")}
-              />
-              {subs.map((s) => (
-                <FilterPill key={s} label={s} active={activeSub === s} onClick={() => setActiveSub(s)} />
-              ))}
-            </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 16, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <FilterSelect
+              label="Grupo"
+              value={activeGrupo}
+              options={["Todos", ...grupos]}
+              counts={{ "Todos": representatives.length, ...Object.fromEntries(grupos.map(g => [g, representatives.filter(p => p.grupo === g).length])) }}
+              onChange={setActiveGrupo}
+            />
+            <FilterSelect
+              label="Sub clasificación"
+              value={activeSub}
+              options={["Todos", ...subs]}
+              onChange={setActiveSub}
+            />
+            {(activeGrupo !== "Todos" || activeSub !== "Todos") && (
+              <button
+                onClick={() => { setActiveGrupo("Todos"); setActiveSub("Todos"); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 4,
+                  fontSize: 12, color: "var(--primary)", fontWeight: 600,
+                  padding: "6px 10px", background: "var(--primary-light)",
+                  borderRadius: 6, border: "none", cursor: "pointer",
+                }}
+              >
+                <X size={12} /> Limpiar filtros
+              </button>
+            )}
           </div>
           <div style={{ display: "flex", gap: 0, background: "white", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden", flexShrink: 0 }}>
             <ViewBtn active={viewMode === "grid"} onClick={() => setViewMode("grid")} icon={<LayoutGrid size={15} />} label="Mosaico" />
@@ -286,46 +291,41 @@ export default function CatalogView({ products, onCheckout }: Props) {
   );
 }
 
-function CatPill({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
+function FilterSelect({ label, value, options, counts, onChange }: {
+  label: string;
+  value: string;
+  options: string[];
+  counts?: Record<string, number>;
+  onChange: (v: string) => void;
+}) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex", alignItems: "center", gap: 6,
-        padding: "8px 14px",
-        background: active ? "var(--primary)" : "white",
-        border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-        borderRadius: 100, fontSize: 13, color: active ? "white" : "var(--ink-mute)", fontWeight: 500,
-        transition: "all 0.15s",
-      }}
-    >
-      {label}
-      <span style={{
-        background: active ? "rgba(255,255,255,0.25)" : "var(--bg)",
-        color: active ? "white" : "var(--ink-soft)",
-        padding: "1px 7px", borderRadius: 100, fontSize: 11, fontWeight: 600,
-      }}>
-        {count}
-      </span>
-    </button>
-  );
-}
-
-function FilterPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex", alignItems: "center", gap: 6,
-        padding: "6px 12px",
-        background: active ? "var(--primary-light)" : "white",
-        border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-        borderRadius: 100, fontSize: 12, color: active ? "var(--primary)" : "var(--ink-mute)", fontWeight: 500,
-        transition: "all 0.15s",
-      }}
-    >
-      {label}
-    </button>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <label style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          padding: "8px 28px 8px 12px",
+          borderRadius: "var(--radius)",
+          border: "1px solid var(--border)",
+          background: "white",
+          fontSize: 13,
+          color: "var(--ink)",
+          fontWeight: 500,
+          minWidth: 180,
+          cursor: "pointer",
+          outline: "none",
+        }}
+      >
+        {options.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt} {counts && counts[opt] !== undefined ? `(${counts[opt]})` : ""}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 

@@ -19,7 +19,10 @@ export default function MainApp() {
 
   useEffect(() => {
     supabase.from("products").select("*").then(({ data }) => {
-      if (data && data.length > 0) setProducts(data);
+      // Solo usar datos de Supabase si tienen la nueva estructura (campo grupo)
+      if (data && data.length > 0 && data[0].grupo !== undefined) {
+        setProducts(data as Producto[]);
+      }
     });
   }, [mode]);
 
