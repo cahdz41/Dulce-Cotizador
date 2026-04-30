@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { MessageCircle, Mail, Trash2, Check, RotateCcw, Upload, Save } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { MessageCircle, Mail, Trash2, Check, RotateCcw, Upload, Save, LogOut } from "lucide-react";
 import { Cotizacion, Empresa, Producto, VentaCerrada } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -14,6 +15,7 @@ import PhotoManager from "@/components/admin/photo-manager";
 type Tab = "cotizaciones" | "catalogo" | "empresa" | "fotos" | "ventas";
 
 export default function AdminView() {
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("cotizaciones");
   const [quotes, setQuotes] = useState<Cotizacion[]>([]);
   const [products, setProducts] = useState<Producto[]>([]);
@@ -79,12 +81,39 @@ export default function AdminView() {
 
   const pendientes = quotes.filter((q) => q.estado === "pendiente").length;
 
+  async function handleLogout() {
+    await fetch("/api/logout", { method: "POST" });
+    router.push("/");
+    router.refresh();
+  }
+
   return (
     <main style={{ flex: 1 }}>
       <div style={{ maxWidth: 1400, margin: "0 auto", padding: 24 }}>
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ margin: 0, fontSize: 24 }}>Panel de administración</h1>
-          <p style={{ margin: "4px 0 0", color: "var(--ink-mute)" }}>Gestiona cotizaciones, catálogo y datos de la empresa</p>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 24 }}>Panel de administración</h1>
+            <p style={{ margin: "4px 0 0", color: "var(--ink-mute)" }}>Gestiona cotizaciones, catálogo y datos de la empresa</p>
+          </div>
+          <button
+            onClick={handleLogout}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 14px",
+              fontSize: 13,
+              fontWeight: 500,
+              color: "var(--danger, #dc2626)",
+              background: "white",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              cursor: "pointer",
+            }}
+          >
+            <LogOut size={14} />
+            Cerrar sesión
+          </button>
         </div>
 
         <StatsRow quotes={quotes} productCount={products.filter((p) => p.stock > 0).length} />

@@ -1,15 +1,8 @@
 "use client";
 
-import { Store, LayoutDashboard } from "lucide-react";
+import { Lock } from "lucide-react";
 
-type Mode = "cliente" | "admin";
-
-type Props = {
-  mode: Mode;
-  onModeChange: (m: Mode) => void;
-};
-
-export default function Topbar({ mode, onModeChange }: Props) {
+export default function Topbar() {
   return (
     <header style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -29,32 +22,28 @@ export default function Topbar({ mode, onModeChange }: Props) {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 4, padding: 4, background: "var(--bg)", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
-        <ModeButton active={mode === "cliente"} onClick={() => onModeChange("cliente")} icon={<Store size={14} />} label="Vista cliente" />
-        <ModeButton active={mode === "admin"} onClick={() => onModeChange("admin")} icon={<LayoutDashboard size={14} />} label="Panel admin" />
-      </div>
+      <a
+        href="/login"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "6px 12px",
+          borderRadius: 6,
+          fontSize: 12,
+          fontWeight: 500,
+          color: "var(--ink-soft)",
+          background: "var(--bg)",
+          border: "1px solid var(--border)",
+          textDecoration: "none",
+          transition: "all 0.15s",
+        }}
+        title="Acceso administrador"
+      >
+        <Lock size={13} />
+        <span>Admin</span>
+      </a>
     </header>
-  );
-}
-
-function ModeButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex", alignItems: "center", gap: 6,
-        padding: "7px 14px", borderRadius: 5,
-        fontSize: 13, fontWeight: 500,
-        color: active ? "white" : "var(--ink-mute)",
-        background: active ? "var(--primary)" : "transparent",
-        boxShadow: active ? "var(--shadow-sm)" : "none",
-        transition: "all 0.15s",
-      }}
-    >
-      {icon}
-      <span style={{ display: "none" }} className="md-visible">{label}</span>
-      <span style={{ display: "block" }}>{label}</span>
-    </button>
   );
 }
 
