@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Producto } from "@/lib/types";
 import { CATALOG_DATA } from "@/lib/catalog-data";
+import { supabase } from "@/lib/supabase";
 import Topbar from "./topbar";
 import CatalogView from "./catalog/catalog-view";
 import CheckoutView from "./checkout/checkout-view";
@@ -11,7 +12,29 @@ type ClientStep = "catalog" | "checkout";
 
 export default function MainApp() {
   const [clientStep, setClientStep] = useState<ClientStep>("catalog");
-  const [products] = useState<Producto[]>(CATALOG_DATA);
+  const [products, setProducts] = useState<Producto[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadProducts() {
+      const { data } = await supabase.from("products").select("*").order("grupo");
+      if (data && data.length > 0) {
+        setProducts(data);
+      } else {
+        setProducts(CATALOG_DATA);
+      }
+      setLoading(false);
+    }
+    loadProducts();
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--ink-mute)" }}>
+        Cargando catálogo…
+      </div>
+    );
+  }
 
   return (
     <>
